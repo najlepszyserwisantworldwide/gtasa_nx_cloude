@@ -55,6 +55,13 @@ jobs:
           python3 -m zipfile -e /tmp/mesa-sdk.zip mesa-install
           test -f mesa-install/opt/devkitpro/portlibs/switch/lib/libEGL.a
           test -f mesa-install/opt/devkitpro/portlibs/switch/lib/libGLESv2.a
+          # The SDK archives are written by an MSYS2 llvm-ar whose symbol index
+          # misses the Rust core/alloc/std members NAK needs, so GNU ld cannot
+          # resolve them; rebuild every index with GNU ranlib (same fix as
+          # aeon1911/RDoom-NX's Dockerfile).
+          for a in mesa-install/opt/devkitpro/portlibs/switch/lib/*.a; do
+            /opt/devkitpro/devkitA64/bin/aarch64-none-elf-ranlib "$a"
+          done
 
       - name: List SDK and portlib archives
         shell: bash

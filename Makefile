@@ -67,8 +67,16 @@ LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*
 
 # mpg123 is needed since 2.1.131 (music streaming used to be in libVendor_mpg123.so)
 # install it with: pacman -S switch-mpg123
-LIBS	:= -lopenal -lSDL2_image -ljpeg -lpng -lwebp -lSDL2 -lmpg123 \
-			-lEGL -lGLESv2 -lglapi -lexpat -lzstd -lz -lnx -lm
+#
+# Mesa: the unified 26.2.x SDK embeds Zink in libEGL, which pulls in the
+# loaderless NVK archive (libvulkan.a) and Mesa's util libraries. Link them as
+# one rescan group, the same set the SDK's OpenGLConfig.cmake uses. Archives a
+# given SDK does not ship (older nvc0-only builds) are skipped. Recursive (=)
+# so MESA_SDK_ROOT below is already set when this expands.
+MESA_OPT_LIBS	= $(foreach l,vulkan mesa_util_c11 blake3 mesa_util mesa_util_simd xmlconfig,$(if $(wildcard $(MESA_SDK_ROOT)/lib/lib$(l).a),-l$(l)))
+LIBS	= -lopenal -lSDL2_image -ljpeg -lpng -lwebp -lSDL2 -lmpg123 \
+			-Wl,--start-group -lEGL -lGLESv2 -lglapi $(MESA_OPT_LIBS) \
+			-lexpat -lzstd -lz -lnx -lstdc++ -lm -Wl,--end-group
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
