@@ -73,18 +73,61 @@ void cpu_boost(int on) {
   appletSetCpuBoostMode(on ? ApmCpuBoostMode_FastLoad : ApmCpuBoostMode_Normal);
 }
 
-// pin the calling thread to a single core. Only pins to cores actually granted
-// to this process (cores 0..2 for an application; core 3 is the system core),
-// so an out-of-range request just leaves the thread on its default core.
-void set_thread_core(int core) {
+// The NRO links with -Wl,--wrap=svcSetThreadCoreMask (see the Makefile and
+// __wrap_svcSetThreadCoreMask below); our own pinning calls the real SVC.
+Result __real_svcSetThreadCoreMask(Handle handle, s32 preferred_core, u32 affinity_mask);
+
+// Cores granted to this process (cores 0..2 for an application; core 3 is the
+// system core).
+static u64 process_core_mask(void) {
   static u64 mask = 0;
   if (mask == 0)
     svcGetInfo(&mask, InfoType_CoreMask, CUR_PROCESS_HANDLE, 0);
-  if (core < 0 || !(mask & (1ull << core)))
+  return mask;
+}
+
+// Pin the calling thread to the allowed part of `mask`; an empty result leaves
+// the thread on its current core.
+void set_thread_core_mask(uint64_t mask) {
+  mask &= process_core_mask();
+  if (mask == 0)
     return;
-  Result rc = svcSetThreadCoreMask(CUR_THREAD_HANDLE, core, 1ull << core);
+  const s32 ideal = __builtin_ctzll(mask);
+  Result rc = __real_svcSetThreadCoreMask(CUR_THREAD_HANDLE, ideal, (u32)mask);
   if (R_FAILED(rc))
-    debugPrintf("affinity: pin to core %d failed: %08x\n", core, rc);
+    debugPrintf("affinity: pin to mask 0x%llx failed: %08x\n",
+                (unsigned long long)mask, rc);
+}
+
+// pin the calling thread to a single core; an out-of-range request just leaves
+// the thread on its default core.
+void set_thread_core(int core) {
+  if (core < 0 || core > 63)
+    return;
+  set_thread_core_mask(1ull << core);
+}
+
+// Mesa's Horizon port pins every util_queue worker it starts (the glthread
+// worker, the disk-cache writer, zink's queues) to cores 1|2 with an ideal core
+// of 1 or 2, from the worker itself (src/util/u_queue.c). Upstream's comment
+// assumes the app renders on core 0; here the engine's RenderQueue thread owns
+// core 1, so producer and glthread consumer end up sharing it. All these threads
+// run at libnx's default priority 59, which Horizon round-robins every 10 ms.
+// Intercept that exact call so mesa_core_mask / mesa_prio can move the workers.
+#define MESA_WORKER_MASK ((1u << 1) | (1u << 2))
+
+Result __wrap_svcSetThreadCoreMask(Handle handle, s32 preferred_core, u32 affinity_mask) {
+  if (handle == CUR_THREAD_HANDLE && affinity_mask == MESA_WORKER_MASK) {
+    if (config.mesa_prio > 0) {
+      Result prc = svcSetThreadPriority(CUR_THREAD_HANDLE, (u32)config.mesa_prio);
+      if (R_FAILED(prc))
+        debugPrintf("mesa worker: priority %d failed: %08x\n", config.mesa_prio, prc);
+    }
+    const u64 mask = (u64)(u32)config.mesa_core_mask & process_core_mask();
+    if (mask)
+      return __real_svcSetThreadCoreMask(handle, __builtin_ctzll(mask), (u32)mask);
+  }
+  return __real_svcSetThreadCoreMask(handle, preferred_core, affinity_mask);
 }
 
 // Android AArch64 stack guards read their canary at TPIDR_EL0+0x28.

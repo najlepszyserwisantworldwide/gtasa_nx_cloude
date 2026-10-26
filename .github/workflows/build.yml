@@ -1,11 +1,17 @@
 name: Build GTA SA release
 
 on:
+  push:
+    branches: [ perf-experiments ]
   workflow_dispatch:
     inputs:
       mesa_sdk_url:
-        description: 'URL of the Mesa 26.2 unified Horizon SDK zip.'
-        required: true
+        description: 'URL of the Mesa 26.2 unified Horizon SDK zip (empty = the 26.2.4 SDK below).'
+        required: false
+        type: string
+      mesa_sdk_sha256:
+        description: 'SHA-256 of that zip (empty = the 26.2.4 SDK below).'
+        required: false
         type: string
       version:
         description: 'Release version. Leave it empty to avoid publishing a release.'
@@ -27,6 +33,7 @@ jobs:
         run: |
           dkp-pacman -S --noconfirm --needed \
             switch-sdl2 \
+            switch-sdl2_image \
             switch-mpg123 \
             switch-ffmpeg \
             switch-openal-soft \
@@ -35,9 +42,12 @@ jobs:
             switch-zlib
 
       - name: Stage unified Mesa SDK
+        # Default: danfromtico/mesa-switch 606441c9 (Mesa 26.2.4) unified SDK,
+        # kept unchanged as a release asset by aeon1911/RDoom-NX because the
+        # original CI artifact expires. Pushes have no inputs, so they use it too.
         env:
-          MESA_SDK_URL: ${{ inputs.mesa_sdk_url }}
-          MESA_SDK_SHA256: 29AB2E0DED0CF7C74014D9C0FDBF1A27B6682FFD0E9ECCC1A1688F8F17F09411
+          MESA_SDK_URL: ${{ inputs.mesa_sdk_url || 'https://github.com/aeon1911/RDoom-NX/releases/download/deps-mesa-26.2.4-606441c9/mesa-26.2.4-switch-unified-horizon-sdk-606441c9.zip' }}
+          MESA_SDK_SHA256: ${{ inputs.mesa_sdk_sha256 || '937cbda82d411c3ca909aa977b3ced82d4e6070046ab016911b1ce84e58ca392' }}
         run: |
           curl --fail --location --retry 3 "$MESA_SDK_URL" --output /tmp/mesa-sdk.zip
           echo "$MESA_SDK_SHA256 */tmp/mesa-sdk.zip" | sha256sum --check --strict

@@ -58,6 +58,40 @@ The port has a config file at `/switch/gtasa/gtasa_nx.cfg`, created on first run
 * `no_offscreen_despawn` — `0` Cars and peds don't despawn when you look away
 * `mobile_widgets` — `0` Hidden Mobile Widgets
 
+#### Performance experiments (`1.0.4-perfexp`)
+
+These keys only change *where* work runs; the defaults reproduce stock 1.0.4.
+Core masks use bit N for core N (`1` = core 0, `2` = core 1, `4` = core 2,
+`5` = cores 0+2); an application only owns cores 0–2.
+
+* `gl_backend` — `0` nvc0 (native Mesa GL, default), `1` Zink (GL on top of NVK
+  Vulkan, already inside the unified Mesa SDK)
+* `glthread` — `1` Mesa glthread on (default), `0` off (the engine already has
+  its own RenderQueue thread)
+* `gallium_thread` — `0` (default) no Gallium threaded context; only Zink uses
+  one (nvc0 has none), so it only matters together with `gl_backend 1`
+* `render_core_mask` — RenderQueue thread (issues every GL call), default `2`
+* `engine_core_mask` — other engine threads (audio, streaming), default `4`
+* `mesa_core_mask` — Mesa worker threads (glthread worker, cache writer, Zink
+  queues); `0` keeps Mesa's own placement (cores 1+2, ideal core 1 for the
+  glthread worker — the RenderQueue core)
+* `mesa_prio` — Horizon priority for those workers; `0` keeps 59, the priority
+  the kernel round-robins in 10 ms slices (lower number = higher priority,
+  e.g. `44`)
+* `perf_log` — `1` makes Mesa append glthread timings and nouveau submission
+  stats to `/switch/gtasa/perf.log` every few seconds
+
+Suggested A/B order, same save, same route, same clocks, `show_fps 1`:
+
+| Run | Keys |
+|-----|------|
+| A (stock)          | defaults |
+| B (no glthread)    | `glthread 0` |
+| C (worker off core 1) | `mesa_core_mask 4` |
+| D (C + priority)   | `mesa_core_mask 4`, `mesa_prio 44`, `engine_core_mask 5` |
+| E (Zink)           | `gl_backend 1` (first run compiles pipelines; judge the second run) |
+| F (Zink + tc)      | `gl_backend 1`, `glthread 0`, `gallium_thread 1` |
+
 ### Tips and Tricks
 
 - You can input PC cheats by pressing **R3** + **L3** to open the on-screen keyboard. See [CHEATS.md](CHEATS.md) for available and unavailable cheats (you can input cheat codes in lowercase as well as uppercase).

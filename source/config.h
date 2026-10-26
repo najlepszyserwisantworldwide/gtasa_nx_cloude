@@ -56,6 +56,21 @@ typedef struct {
                              // and the 3 touch rows in the controls menu)
   int fuzzy_seek;            // 1 (default) = OR MPG123_FUZZY|SEEKBUFFER|GAPLESS into
                              // mpg123 flag calls (TheOfficialFloW's FuzzySeek port)
+  // Renderer / CPU-placement experiments. Core masks: bit N = core N; an
+  // application only owns cores 0..2, other bits are dropped.
+  int gl_backend;        // 0 (default) = nvc0, Mesa's native Gallium GL driver;
+                         // 1 = zink, GL layered on NVK (Vulkan). Read at eglInitialize.
+  int glthread;          // 1 (default) = Mesa glthread on, 0 = off
+  int gallium_thread;    // 0 (default) = no Gallium threaded context; only zink
+                         // uses one (nvc0 has none), so this matters for zink only
+  int render_core_mask;  // engine RenderQueue thread (issues all GL); default 2 (core 1)
+  int engine_core_mask;  // other engine threads (audio, streaming); default 4 (core 2)
+  int mesa_core_mask;    // Mesa worker threads (glthread, cache, zink queues);
+                         // 0 (default) = Mesa's own choice: cores 1|2, ideal 1 or 2
+  int mesa_prio;         // Horizon priority for Mesa workers; 0 (default) = keep
+                         // 59 (0x3B), which the kernel round-robins every 10 ms
+  int perf_log;          // 1 = glthread + nouveau submission stats every ~5 s
+                         // into /switch/gtasa/perf.log
 } Config;
 
 extern Config config;

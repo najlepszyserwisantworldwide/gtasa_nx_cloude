@@ -462,20 +462,38 @@ void hard_exit(void) {
   __libnx_exit(0);
 }
 
-int main(void) {
-  // full clock for boot; dropped once the menu has rendered
-  cpu_boost(1);
-
-  setenv("MESA_GLTHREAD", "true", 1);
-  setenv("GALLIUM_THREAD", "0", 1);
+// Mesa reads all of these at eglInitialize / context creation, so they are set
+// from the config before the SDL launcher brings up its own EGL display.
+static void setup_mesa_env(void) {
+  setenv("MESA_GLTHREAD", config.glthread ? "true" : "false", 1);
+  // threaded context: nvc0 has none, zink wraps itself in one unless this is 0
+  setenv("GALLIUM_THREAD", config.gallium_thread ? "1" : "0", 1);
   setenv("NOUVEAU_SWITCH_MAPPED_COMPLETION", "1", 1);
+  // nvc0 = Mesa's native Gallium GL driver; zink = GL layered on NVK (Vulkan).
+  // Both ship in the unified Mesa 26.2 SDK; one EGL display keeps one backend.
+  setenv("MESA_SWITCH_GL_DRIVER", config.gl_backend == 1 ? "zink" : "nvc0", 1);
 
   mkdir("/switch/gtasa/shadercache", 0777);
   setenv("MESA_SHADER_CACHE_DIR", "/switch/gtasa/shadercache", 1);
   setenv("MESA_SHADER_CACHE_DISABLE", "false", 1);
 
+  if (config.perf_log) {
+    // glthread enqueue/worker timings and nouveau submission stats, written by
+    // Mesa every few seconds (the Switch port honours GALLIUM_LOG_FILE)
+    setenv("MESA_GLTHREAD_PERF", "1", 1);
+    setenv("NOUVEAU_SWITCH_STATS", "1", 1);
+    setenv("GALLIUM_LOG_FILE", "/switch/gtasa/perf.log", 1);
+  }
+}
+
+int main(void) {
+  // full clock for boot; dropped once the menu has rendered
+  cpu_boost(1);
+
   if (read_config(CONFIG_NAME) < 0)
     write_config(CONFIG_NAME);
+
+  setup_mesa_env();
 
   if (!settings_menu_run()) {
     cpu_boost(0);

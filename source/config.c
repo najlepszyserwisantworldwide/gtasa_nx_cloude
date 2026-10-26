@@ -28,7 +28,15 @@
   CONFIG_VAR_INT(disable_ped_spec); \
   CONFIG_VAR_INT(no_offscreen_despawn); \
   CONFIG_VAR_INT(mobile_widgets); \
-  CONFIG_VAR_INT(fuzzy_seek);
+  CONFIG_VAR_INT(fuzzy_seek); \
+  CONFIG_VAR_INT(gl_backend); \
+  CONFIG_VAR_INT(glthread); \
+  CONFIG_VAR_INT(gallium_thread); \
+  CONFIG_VAR_INT(render_core_mask); \
+  CONFIG_VAR_INT(engine_core_mask); \
+  CONFIG_VAR_INT(mesa_core_mask); \
+  CONFIG_VAR_INT(mesa_prio); \
+  CONFIG_VAR_INT(perf_log);
 
 Config config;
 
@@ -65,6 +73,15 @@ int read_config(const char *file) {
   config.no_offscreen_despawn = 1;  // on by default (cars/peds stay off-screen)
   config.mobile_widgets = 0;        // off by default = hide the mobile touch widgets
   config.fuzzy_seek = 1;            // on by default (skip useless mpg123 data on seek)
+  // renderer / CPU-placement experiments; defaults reproduce the stock 1.0.4 setup
+  config.gl_backend = 0;            // nvc0
+  config.glthread = 1;
+  config.gallium_thread = 0;
+  config.render_core_mask = 1 << 1; // core 1
+  config.engine_core_mask = 1 << 2; // core 2
+  config.mesa_core_mask = 0;        // Mesa default (cores 1|2)
+  config.mesa_prio = 0;             // Mesa default (59)
+  config.perf_log = 0;
 
   FILE *f = fopen(file, "r");
   if (f == NULL)

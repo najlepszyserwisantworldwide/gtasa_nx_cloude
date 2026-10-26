@@ -449,8 +449,9 @@ static void *pthread_trampoline(void *p) {
   void *(*func)(void *) = s->func;
   void *arg = s->arg;
   free(s);
-  // OS_ThreadLaunch threads (audio/stream) share core 2 (logic=0, render=1)
-  set_thread_core(2);
+  // OS_ThreadLaunch threads (audio/stream) share engine_core_mask (default core 2;
+  // logic=0, render=1)
+  set_thread_core_mask((uint64_t)(uint32_t)config.engine_core_mask);
   thread_registry_add();            // track for freeze-on-exit
   if (!game_tls_install())
     return (void *)-1;

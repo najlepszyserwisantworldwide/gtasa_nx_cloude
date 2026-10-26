@@ -37,10 +37,12 @@ include $(DEVKITPRO)/libnx/switch_rules
 #   of a homebrew executable (.nro). This is intended to be used for sysmodules.
 #   NACP building is skipped as well.
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
+# fixed name: CI checks out into a directory named after the repo (forks too),
+# and the workflow uploads gtasa_nx.nro
+TARGET		:=	gtasa_nx
 APP_TITLE	:=	GTA San Andreas
 APP_AUTHOR	:=	naga
-APP_VERSION	:=	1.0.4
+APP_VERSION	:=	1.0.4-perfexp
 BUILD		:=	build
 SOURCES		:=	source source/hooks
 DATA		:=	data
@@ -60,7 +62,8 @@ CFLAGS	+=	$(INCLUDE) -D__SWITCH__
 CXXFLAGS	:= $(CFLAGS)
 
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map) \
+			-Wl,--wrap=svcSetThreadCoreMask
 
 # mpg123 is needed since 2.1.131 (music streaming used to be in libVendor_mpg123.so)
 # install it with: pacman -S switch-mpg123

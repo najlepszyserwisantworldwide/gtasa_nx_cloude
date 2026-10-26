@@ -35,16 +35,16 @@ void *NVThreadGetCurrentJNIEnv(void) {
 typedef struct {
   void *(*func)(void *);
   void *arg;
-  int core;
+  uint64_t core_mask;
 } NVThreadStart;
 
 static int nv_thread_trampoline(void *arg) {
   NVThreadStart *start = arg;
   void *(*func)(void *) = start->func;
   void *user_arg = start->arg;
-  int core = start->core;
+  const uint64_t core_mask = start->core_mask;
   free(start);
-  set_thread_core(core);            // spread engine threads across cores
+  set_thread_core_mask(core_mask);  // spread engine threads across cores
   thread_registry_add();            // track for freeze-on-exit
   if (!game_tls_install())
     return -1;
@@ -64,8 +64,11 @@ int NVThreadSpawnJNIThread(long *tid, const void *attr, const char *name,
     return -1;
   start->func = fn;
   start->arg = arg;
-  // CPU split: core 0 = logic, core 1 = GL render thread, core 2 = everything else
-  start->core = (name && strcmp(name, "RenderQueue") == 0) ? 1 : 2;
+  // CPU split (defaults): core 0 = logic, core 1 = GL render thread,
+  // core 2 = everything else; render_core_mask / engine_core_mask override it
+  start->core_mask = (name && strcmp(name, "RenderQueue") == 0)
+                         ? (uint64_t)(uint32_t)config.render_core_mask
+                         : (uint64_t)(uint32_t)config.engine_core_mask;
   thrd_t thrd;
   // devkitA64 returns zero on success.
   const int create_rc = thrd_create(&thrd, nv_thread_trampoline, start);

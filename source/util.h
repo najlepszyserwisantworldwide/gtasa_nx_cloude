@@ -20,6 +20,11 @@ void cpu_boost(int on);
 // process's allowed mask)
 void set_thread_core(int core);
 
+// pin the calling thread to a set of cores (bit N = core N). Cores not granted to
+// this process are dropped; if none is left the thread stays where it is. The
+// lowest remaining core becomes the thread's ideal core.
+void set_thread_core_mask(uint64_t mask);
+
 // Thread registry for a clean shutdown. Each engine worker thread records its own
 // kernel handle from its trampoline via thread_registry_add(); on exit the main
 // thread calls thread_registry_pause_others() to freeze them all so none is
