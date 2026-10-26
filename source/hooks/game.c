@@ -19,6 +19,7 @@
 #include "../so_util.h"
 #include "../hooks.h"
 #include "../jni_fake.h"
+#include "../perflog.h"
 
 extern so_module game_mod; // defined in main.c
 
@@ -36,6 +37,7 @@ typedef struct {
   void *(*func)(void *);
   void *arg;
   uint64_t core_mask;
+  char name[16];
 } NVThreadStart;
 
 static int nv_thread_trampoline(void *arg) {
@@ -43,9 +45,12 @@ static int nv_thread_trampoline(void *arg) {
   void *(*func)(void *) = start->func;
   void *user_arg = start->arg;
   const uint64_t core_mask = start->core_mask;
+  char name[sizeof(start->name)];
+  memcpy(name, start->name, sizeof(name));
   free(start);
   set_thread_core_mask(core_mask);  // spread engine threads across cores
   thread_registry_add();            // track for freeze-on-exit
+  perflog_register_thread(name);    // perf_log CPU-time sampling
   if (!game_tls_install())
     return -1;
   void *rc = func(user_arg);
@@ -64,6 +69,7 @@ int NVThreadSpawnJNIThread(long *tid, const void *attr, const char *name,
     return -1;
   start->func = fn;
   start->arg = arg;
+  snprintf(start->name, sizeof(start->name), "%s", name ? name : "nv");
   // CPU split (defaults): core 0 = logic, core 1 = GL render thread,
   // core 2 = everything else; render_core_mask / engine_core_mask override it
   start->core_mask = (name && strcmp(name, "RenderQueue") == 0)

@@ -26,6 +26,7 @@
 #include "imports.h"
 #include "jni_fake.h"
 #include "settings_menu.h"
+#include "perflog.h"
 
 static void *heap_so_base = NULL;
 static size_t heap_so_limit = 0;
@@ -449,6 +450,8 @@ static void update_gamepad(void) {
 // cleanup: commit the SD so a just-written save persists, then terminate
 // immediately (like the Vita loader's sceKernelExitProcess). Never returns.
 void hard_exit(void) {
+  // perf_log writer: last line + close the file before services go away
+  perflog_stop();
   // The mobile engine never stops its own worker threads (unlike the HL2 port, whose
   // engine returns with threads wound down). Freeze them so none is running engine/
   // GPU/fs code while __libnx_exit's __appExit deinits those services.
@@ -479,10 +482,11 @@ static void setup_mesa_env(void) {
 
   if (config.perf_log) {
     // glthread enqueue/worker timings and nouveau submission stats, written by
-    // Mesa every few seconds (the Switch port honours GALLIUM_LOG_FILE)
+    // Mesa every few seconds (the Switch port honours GALLIUM_LOG_FILE; the
+    // leading '+' appends, so several runs end up in one file)
     setenv("MESA_GLTHREAD_PERF", "1", 1);
     setenv("NOUVEAU_SWITCH_STATS", "1", 1);
-    setenv("GALLIUM_LOG_FILE", "/switch/gtasa/perf.log", 1);
+    setenv("GALLIUM_LOG_FILE", "+/switch/gtasa/perf.log", 1);
   }
 }
 
@@ -534,6 +538,10 @@ int main(void) {
   so_resolve(&game_mod, dynlib_functions, dynlib_numfunctions, 1);
 
   patch_game();
+
+  // perf_log: needs the symbol tables (freed by so_free_temp) and has to be
+  // armed before JNI_OnLoad, which spawns the engine threads
+  perflog_init();
 
   resolve_entry_points();
   int (* JNI_OnLoad)(void *vm, void *reserved) = (void *)so_find_addr_rx(&game_mod, "JNI_OnLoad");
@@ -588,6 +596,8 @@ int main(void) {
   u64 next_frame_tick = last_tick + frame_ticks;
   int boot_frames = 0;
 
+  perflog_start();
+
   while (appletMainLoop() && !jni_quit_requested) {
     // fire native completion callbacks the engine is blocked on before the tick
     dispatch_jni_callbacks();
@@ -603,7 +613,9 @@ int main(void) {
     if (dt < 1.0f / 120.0f || dt > 0.5f)
       dt = 1.0f / 60.0f;
 
+    perflog_logic_begin();
     implOnDrawFrame(fake_env, NULL, dt);
+    perflog_logic_end();
     if (config.fps_cap_30)
       keep_game_frame_limiter_off();
 

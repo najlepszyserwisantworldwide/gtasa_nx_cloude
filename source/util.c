@@ -15,6 +15,7 @@
 
 #include "util.h"
 #include "config.h"
+#include "perflog.h"
 
 #ifdef DEBUG_LOG
 
@@ -118,6 +119,8 @@ void set_thread_core(int core) {
 
 Result __wrap_svcSetThreadCoreMask(Handle handle, s32 preferred_core, u32 affinity_mask) {
   if (handle == CUR_THREAD_HANDLE && affinity_mask == MESA_WORKER_MASK) {
+    static int mesa_threads;
+    perflog_register_thread_numbered("mesa", &mesa_threads); // perf_log sampling
     if (config.mesa_prio > 0) {
       Result prc = svcSetThreadPriority(CUR_THREAD_HANDLE, (u32)config.mesa_prio);
       if (R_FAILED(prc))

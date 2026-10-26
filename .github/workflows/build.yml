@@ -96,10 +96,13 @@ jobs:
           path: gtasa_nx.nro
           if-no-files-found: error
 
+  # Pushes to perf-experiments publish a pre-release (perfexp-<run number>), so
+  # every test build has a plain download link; a manual run with a version
+  # publishes a normal release as before.
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     permissions:
       contents: write
 
@@ -112,8 +115,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v${{ inputs.version }}"
-          name: "gtasa_nx v${{ inputs.version }}"
+          tag_name: ${{ github.event_name == 'push' && format('perfexp-{0}', github.run_number) || format('v{0}', inputs.version) }}
+          name: ${{ github.event_name == 'push' && format('perfexp build {0}', github.run_number) || format('gtasa_nx v{0}', inputs.version) }}
+          target_commitish: ${{ github.sha }}
           files: gtasa_nx.nro
           draft: false
-          prerelease: false
+          prerelease: ${{ github.event_name == 'push' }}

@@ -51,6 +51,7 @@
 #include "util.h"
 #include "libc_shim.h"
 #include "overlay.h"
+#include "perflog.h"
 
 extern uintptr_t __cxa_atexit;
 
@@ -211,7 +212,11 @@ static void glDeleteProgram_c(GLuint p) {
 extern unsigned int eglSwapBuffersHook(void *display, void *surface);
 static unsigned int eglSwapBuffers_cache(void *display, void *surface) {
   gl_state_cache_reset();
-  return eglSwapBuffersHook(display, surface);
+  // perf_log: frame interval and time inside the swap (no-op unless armed)
+  const uint64_t perf_t0 = perflog_swap_begin();
+  const unsigned int ret = eglSwapBuffersHook(display, surface);
+  perflog_swap_end(perf_t0);
+  return ret;
 }
 
 static EGLBoolean eglMakeCurrent_dedup(EGLDisplay dpy, EGLSurface draw,
@@ -453,6 +458,8 @@ static void *pthread_trampoline(void *p) {
   // logic=0, render=1)
   set_thread_core_mask((uint64_t)(uint32_t)config.engine_core_mask);
   thread_registry_add();            // track for freeze-on-exit
+  static int os_threads;
+  perflog_register_thread_numbered("os", &os_threads);
   if (!game_tls_install())
     return (void *)-1;
   return func(arg);

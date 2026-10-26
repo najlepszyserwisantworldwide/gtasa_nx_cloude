@@ -78,8 +78,19 @@ Core masks use bit N for core N (`1` = core 0, `2` = core 1, `4` = core 2,
 * `mesa_prio` — Horizon priority for those workers; `0` keeps 59, the priority
   the kernel round-robins in 10 ms slices (lower number = higher priority,
   e.g. `44`)
-* `perf_log` — `1` makes Mesa append glthread timings and nouveau submission
-  stats to `/switch/gtasa/perf.log` every few seconds
+* `perf_log` — `1` appends a line every 2 s to `/switch/gtasa/perf_threads.log`:
+  FPS and frame-time spikes (timed at `eglSwapBuffers`), main-thread logic
+  time, CPU % of every engine and Mesa thread (and their sum per core),
+  visible entities / LOD distance scale / peds / cars from the engine, and the
+  CPU/GPU/MEM clocks actually applied. Each launch starts with a header
+  (firmware, model, handheld/docked, all keys above), so several runs can go
+  into one file. Mesa also appends glthread timings and nouveau submission
+  stats to `/switch/gtasa/perf.log`.
+
+Test scenario for the log (the LOD scale in the log tells the segments apart):
+load a save at Grove Street, stand still ~20 s with the draw distance at
+minimum, then at half, then at maximum, then drive ~2 min towards Downtown at
+the distance you want to play at, and quit from the pause menu.
 
 Suggested A/B order, same save, same route, same clocks, `show_fps 1`:
 
