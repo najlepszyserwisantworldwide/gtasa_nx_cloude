@@ -56,8 +56,28 @@ jobs:
           test -f mesa-install/opt/devkitpro/portlibs/switch/lib/libEGL.a
           test -f mesa-install/opt/devkitpro/portlibs/switch/lib/libGLESv2.a
 
+      - name: List SDK and portlib archives
+        shell: bash
+        run: |
+          sdk=$(ls mesa-install/opt/devkitpro/portlibs/switch/lib | tr '\n' ' ')
+          ports=$(ls /opt/devkitpro/portlibs/switch/lib | grep -E '\.a$' | tr '\n' ' ')
+          echo "::notice title=Mesa SDK libs::$sdk"
+          echo "::notice title=Portlibs::$ports"
+
+      # Build output is also surfaced as annotations, so failures can be read
+      # from the check-run API without downloading the raw job log.
       - name: Build
-        run: make
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! make 2>&1 | tee build.log; then
+            esc() { sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+            errs=$(grep -E 'error|undefined reference|cannot find|multiple definition|\*\*\*' build.log | head -60 | esc)
+            tail=$(tail -n 40 build.log | esc)
+            echo "::error title=Build errors::$errs"
+            echo "::error title=Build log tail::$tail"
+            exit 1
+          fi
         env:
           DEVKITPRO: /opt/devkitpro
           DEVKITA64: /opt/devkitpro/devkitA64
